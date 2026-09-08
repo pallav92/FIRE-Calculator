@@ -50,7 +50,13 @@ data class FireResult(
     val corpusExhaustionAge: Int?,
     val yearsToRetirement: Int,
     val yearsInRetirement: Int,
-    val trajectory: List<YearlyTrajectoryPoint>
+    val trajectory: List<YearlyTrajectoryPoint>,
+    val fireProgressPercent: Double = 0.0,
+    val projectedFireProgressPercent: Double = 0.0,
+    val isCoastFireAchieved: Boolean = false,
+    val coastFireCurrentCorpusNeeded: Double = 0.0,
+    val leanFireCorpusNeeded: Double = perpetualCorpusNeeded * 0.6,
+    val fatFireCorpusNeeded: Double = perpetualCorpusNeeded * 1.32
 )
 
 /**

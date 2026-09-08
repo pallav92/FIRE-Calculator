@@ -1,6 +1,8 @@
-package com.finance.firecalculator.ui
+package com.finance.firecalculator.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,14 +17,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.finance.firecalculator.domain.model.FireInput
-import com.finance.firecalculator.domain.model.FireResult
-import com.finance.firecalculator.ui.components.*
+import com.finance.firecalculator.ui.FireCalculatorViewModel
+import com.finance.firecalculator.ui.components.InputSliderSection
+import com.finance.firecalculator.ui.components.SaveProfileDialog
 import com.finance.firecalculator.ui.util.CurrencyFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FireCalculatorScreen(
+fun CalculatorStudioScreen(
     viewModel: FireCalculatorViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -31,97 +33,113 @@ fun FireCalculatorScreen(
     val result = uiState.result
     val currency = input.currencySymbol
 
-    var showCurrencyMenu by remember { mutableStateOf(false) }
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Column {
                         Text(
-                            text = "FIRE Calculator",
+                            text = "Plan Studio",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp
+                        )
+                        Text(
+                            text = if (uiState.isGuest) "Guest Mode (Temporary Exploration)" else "Editing Profile: ${uiState.activeProfile?.name}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (uiState.isGuest) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                         )
                     }
                 },
                 actions = {
-                    // Profile Chip
-                    AssistChip(
-                        onClick = { viewModel.setProfileSheetVisible(true) },
-                        label = {
-                            Text(
-                                text = if (uiState.isGuest) "Guest" else (uiState.activeProfile?.name ?: "Profile"),
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = if (uiState.isGuest) Icons.Default.PersonOutline else Icons.Default.Person,
-                                contentDescription = "Profile",
-                                modifier = Modifier.size(16.dp),
-                                tint = if (uiState.isGuest) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
-                            )
-                        },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = "Switch profile",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = if (uiState.isGuest) {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                            }
-                        ),
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-
-                    // Currency Picker dropdown
-                    Box {
-                        IconButton(onClick = { showCurrencyMenu = true }) {
-                            Text(
-                                text = currency,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                    // Reset is ONLY available for Guest Mode. Saved profiles are protected!
+                    if (uiState.isGuest) {
+                        TextButton(onClick = { showResetConfirmDialog = true }) {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Reset")
                         }
-                        DropdownMenu(
-                            expanded = showCurrencyMenu,
-                            onDismissRequest = { showCurrencyMenu = false }
+                        TextButton(onClick = { viewModel.setSaveProfileDialogVisible(true) }) {
+                            Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Save Plan")
+                        }
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            // Profile Protection Sticky Action Bar:
+            // Visible ONLY for Saved Profiles when there are unsaved modifications!
+            AnimatedVisibility(
+                visible = !uiState.isGuest && uiState.hasUnsavedChanges,
+                enter = slideInVertically(initialOffsetY = { it }),
+                exit = slideOutVertically(targetOffsetY = { it })
+            ) {
+                Surface(
+                    tonalElevation = 8.dp,
+                    shadowElevation = 8.dp,
+                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp),
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            listOf("$", "₹", "€", "£", "¥").forEach { sym ->
-                                DropdownMenuItem(
-                                    text = { Text(sym) },
-                                    onClick = {
-                                        viewModel.updateCurrency(sym)
-                                        showCurrencyMenu = false
-                                    }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(8.dp)
+                                ) {}
+                                Text(
+                                    text = "Unsaved Changes",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
+
+                            TextButton(onClick = { viewModel.setSaveProfileDialogVisible(true) }) {
+                                Text("Save as New...", fontSize = 12.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { viewModel.discardProfileChanges() },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Discard")
+                            }
+
+                            Button(
+                                onClick = { viewModel.saveActiveProfileChanges() },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Save Changes")
+                            }
                         }
                     }
-
-                    // Reset action
-                    IconButton(onClick = { viewModel.resetToDefaults() }) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Reset to Defaults"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
+                }
+            }
         },
         modifier = modifier
     ) { innerPadding ->
@@ -133,52 +151,40 @@ fun FireCalculatorScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Guest Mode Banner if active
-            if (uiState.isGuest) {
+            // Inflation Reality Check Banner
+            if (input.isInflationAdjusted) {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                modifier = Modifier.size(18.dp)
-                            )
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Column {
                             Text(
-                                text = "Playing as Guest. Save this scenario to your local profiles anytime.",
+                                text = "Inflation Reality Check",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "At ${input.inflationRatePercent}% annual inflation, ${CurrencyFormatter.formatCompact(input.monthlyWithdrawalPostRetirement, currency)}/mo today will equal ${CurrencyFormatter.formatCompact(result.adjustedMonthlyWithdrawalAtRetirement, currency)}/mo when you retire in ${result.yearsToRetirement} years.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
                         }
-                        TextButton(
-                            onClick = { viewModel.setSaveProfileDialogVisible(true) },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text("Save Plan", fontWeight = FontWeight.Bold)
-                        }
                     }
                 }
             }
-
-            // Hero Summary Card
-            SummaryHeroCard(input = input, result = result)
-
-            // Trajectory Visualization Chart
-            ProjectionChart(result = result, currencySymbol = currency)
 
             // 1. Timeline Section
             InputSectionCard(title = "Timeline & Retirement Age") {
@@ -197,7 +203,7 @@ fun FireCalculatorScreen(
 
                 InputSliderSection(
                     title = "Retirement Target Age",
-                    subtitle = "Age at which you want to retire (${input.retirementAge - input.currentAge} yrs left)",
+                    subtitle = "Target age to stop working (${input.retirementAge - input.currentAge} yrs to go)",
                     formattedValue = "${input.retirementAge} yrs",
                     value = input.retirementAge.toFloat(),
                     absoluteRange = input.currentAge.toFloat()..85f,
@@ -211,7 +217,7 @@ fun FireCalculatorScreen(
 
                 InputSliderSection(
                     title = "Life Expectancy",
-                    subtitle = "Planning horizon for fund longevity",
+                    subtitle = "Planning horizon for longevity",
                     formattedValue = "${input.lifeExpectancy} yrs",
                     value = input.lifeExpectancy.toFloat(),
                     absoluteRange = (input.retirementAge + 1).toFloat()..100f,
@@ -222,8 +228,8 @@ fun FireCalculatorScreen(
                 )
             }
 
-            // 2. Savings & Contributions Section
-            InputSectionCard(title = "Current Corpus & Monthly Savings") {
+            // 2. Wealth & Savings Section
+            InputSectionCard(title = "Wealth & Monthly Contributions") {
                 InputSliderSection(
                     title = "Current Retirement Corpus",
                     subtitle = "Existing investments (0 to 99 Cr)",
@@ -233,7 +239,7 @@ fun FireCalculatorScreen(
                     isAdaptiveSlider = true,
                     defaultZeroMax = 10_000_000f,
                     currencySymbol = currency,
-                    stepAmount = 100_000f,
+                    stepAmount = 100_000f, // ₹100,000 stepper step!
                     inputSuffix = currency,
                     onValueChange = { viewModel.updateCurrentCorpus(it.toDouble()) },
                     onStepChange = { viewModel.updateCurrentCorpus(input.currentCorpus + it.toDouble()) }
@@ -243,14 +249,14 @@ fun FireCalculatorScreen(
 
                 InputSliderSection(
                     title = "Monthly Contribution",
-                    subtitle = "Invested monthly (100 to 10 Lakhs)",
+                    subtitle = "Invested monthly until retirement (100 to 10 Lakhs)",
                     formattedValue = "${CurrencyFormatter.formatCompact(input.monthlyContribution, currency)}/mo",
                     value = input.monthlyContribution.toFloat(),
                     absoluteRange = 100f..1_000_000f,
                     isAdaptiveSlider = true,
                     defaultZeroMax = 50_000f,
                     currencySymbol = currency,
-                    stepAmount = 1_000f,
+                    stepAmount = 1_000f, // ₹1,000 stepper step!
                     inputSuffix = "$currency/mo",
                     onValueChange = { viewModel.updateMonthlyContribution(it.toDouble()) },
                     onStepChange = { viewModel.updateMonthlyContribution(input.monthlyContribution + it.toDouble()) }
@@ -261,7 +267,7 @@ fun FireCalculatorScreen(
             InputSectionCard(title = "Post-Retirement Living & Inflation") {
                 InputSliderSection(
                     title = "Monthly Withdrawal Needed",
-                    subtitle = "Monthly living expenses in retirement",
+                    subtitle = "In today's purchasing power",
                     formattedValue = "${CurrencyFormatter.formatCompact(input.monthlyWithdrawalPostRetirement, currency)}/mo",
                     value = input.monthlyWithdrawalPostRetirement.toFloat(),
                     absoluteRange = 500f..50_000_000f,
@@ -274,7 +280,7 @@ fun FireCalculatorScreen(
                     onStepChange = { viewModel.updateMonthlyWithdrawal(input.monthlyWithdrawalPostRetirement + it.toDouble()) }
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -288,11 +294,7 @@ fun FireCalculatorScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = if (input.isInflationAdjusted) {
-                                "Escalates post-retirement withdrawals annually"
-                            } else {
-                                "Assumes flat expenses in today's currency"
-                            },
+                            text = if (input.isInflationAdjusted) "Escalates annual withdrawal by inflation" else "Assumes flat expenses in today's currency",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -308,7 +310,7 @@ fun FireCalculatorScreen(
                         Spacer(modifier = Modifier.height(10.dp))
                         InputSliderSection(
                             title = "Expected Inflation Rate",
-                            subtitle = "Annual cost of living increase",
+                            subtitle = "Annual cost of living escalation",
                             formattedValue = CurrencyFormatter.formatPercent(input.inflationRatePercent),
                             value = input.inflationRatePercent.toFloat(),
                             absoluteRange = 1f..15f,
@@ -321,11 +323,11 @@ fun FireCalculatorScreen(
                 }
             }
 
-            // 4. Expected ROI (Return on Investment) Section
+            // 4. Return on Investment (ROI) Section
             InputSectionCard(title = "Expected Return on Investment (ROI)") {
                 InputSliderSection(
                     title = "Expected Annual ROI",
-                    subtitle = "Average portfolio growth rate",
+                    subtitle = "Pre-retirement portfolio compounding",
                     formattedValue = CurrencyFormatter.formatPercent(input.expectedRoiPercent),
                     value = input.expectedRoiPercent.toFloat(),
                     absoluteRange = 1f..25f,
@@ -335,7 +337,7 @@ fun FireCalculatorScreen(
                     onStepChange = { viewModel.updateExpectedRoi(input.expectedRoiPercent + it.toDouble()) }
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -349,7 +351,7 @@ fun FireCalculatorScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "Switch to more conservative asset allocation after retirement",
+                            text = "Switch to more conservative allocation after retiring",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -365,7 +367,7 @@ fun FireCalculatorScreen(
                         Spacer(modifier = Modifier.height(10.dp))
                         InputSliderSection(
                             title = "Post-Retirement ROI",
-                            subtitle = "Return on corpus while in retirement",
+                            subtitle = "Compounding rate during retirement withdrawals",
                             formattedValue = CurrencyFormatter.formatPercent(input.postRetirementRoiPercent),
                             value = input.postRetirementRoiPercent.toFloat(),
                             absoluteRange = 1f..20f,
@@ -378,96 +380,39 @@ fun FireCalculatorScreen(
                 }
             }
 
-            // 5. FIRE Benchmark Rules
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "FIRE Benchmarks & Safe Withdrawal",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "Perpetual 4% Rule",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = CurrencyFormatter.formatCompact(result.perpetualCorpusNeeded, currency),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = "Implied SWR",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = CurrencyFormatter.formatPercent(result.safeWithdrawalRatePercent),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (result.safeWithdrawalRatePercent <= 4.0 && result.safeWithdrawalRatePercent > 0.0) {
-                                    Color(0xFF198754)
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                }
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = "1st Yr Annual Expense",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = CurrencyFormatter.formatCompact(result.firstYearAnnualWithdrawal, currency),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(80.dp)) // padding for bottom action bar
         }
     }
 
-    // Profile Selection Bottom Sheet
-    if (uiState.isProfileSheetVisible) {
-        ProfileSelectionSheet(
-            activeProfile = uiState.activeProfile,
-            savedProfiles = uiState.savedProfiles,
-            onSelectGuest = { viewModel.switchToGuest() },
-            onSelectProfile = { viewModel.switchToProfile(it) },
-            onSaveNewProfileClick = {
-                viewModel.setProfileSheetVisible(false)
-                viewModel.setSaveProfileDialogVisible(true)
+    // Reset Confirmation Dialog (Guest Mode only)
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmDialog = false },
+            title = { Text("Reset to Defaults?") },
+            text = { Text("This will reset all slider inputs back to default template numbers.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.resetToDefaults()
+                        showResetConfirmDialog = false
+                    }
+                ) {
+                    Text("Reset")
+                }
             },
-            onDeleteProfile = { viewModel.deleteProfile(it) },
-            onDismiss = { viewModel.setProfileSheetVisible(false) }
+            dismissButton = {
+                TextButton(onClick = { showResetConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 
-    // Save As Profile Dialog
+    // Save as Profile Dialog
     if (uiState.isSaveProfileDialogVisible) {
         SaveProfileDialog(
             onDismiss = { viewModel.setSaveProfileDialogVisible(false) },
-            onSave = { viewModel.saveCurrentAsNewProfile(it) }
+            onSave = { name -> viewModel.saveCurrentAsNewProfile(name) }
         )
     }
 }

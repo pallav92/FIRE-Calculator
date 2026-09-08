@@ -8,7 +8,19 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.util.UUID
 
-class ProfileRepository(context: Context) {
+interface IProfileRepository {
+    fun getAllProfiles(): List<UserProfile>
+    fun saveProfile(profile: UserProfile): List<UserProfile>
+    fun createProfile(name: String, input: FireInput): UserProfile
+    fun deleteProfile(profileId: String): List<UserProfile>
+    fun getActiveProfile(): UserProfile?
+    fun getActiveProfileId(): String?
+    fun setActiveProfileId(profileId: String?)
+    fun getGuestInput(): FireInput
+    fun saveGuestInput(input: FireInput)
+}
+
+class ProfileRepository(context: Context) : IProfileRepository {
     private val prefs: SharedPreferences = context.getSharedPreferences("fire_calculator_prefs", Context.MODE_PRIVATE)
     private val gson = Gson()
 
@@ -18,7 +30,7 @@ class ProfileRepository(context: Context) {
         private const val KEY_GUEST_INPUT = "guest_fire_input"
     }
 
-    fun getAllProfiles(): List<UserProfile> {
+    override fun getAllProfiles(): List<UserProfile> {
         val json = prefs.getString(KEY_PROFILES, null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<UserProfile>>() {}.type
@@ -28,7 +40,7 @@ class ProfileRepository(context: Context) {
         }
     }
 
-    fun saveProfile(profile: UserProfile): List<UserProfile> {
+    override fun saveProfile(profile: UserProfile): List<UserProfile> {
         val currentProfiles = getAllProfiles().toMutableList()
         val existingIndex = currentProfiles.indexOfFirst { it.id == profile.id }
         val updatedProfile = profile.copy(lastModified = System.currentTimeMillis())
@@ -41,7 +53,7 @@ class ProfileRepository(context: Context) {
         return currentProfiles
     }
 
-    fun createProfile(name: String, input: FireInput): UserProfile {
+    override fun createProfile(name: String, input: FireInput): UserProfile {
         val newProfile = UserProfile(
             id = UUID.randomUUID().toString(),
             name = name.trim().ifEmpty { "My Plan" },
@@ -54,7 +66,7 @@ class ProfileRepository(context: Context) {
         return newProfile
     }
 
-    fun deleteProfile(profileId: String): List<UserProfile> {
+    override fun deleteProfile(profileId: String): List<UserProfile> {
         val updated = getAllProfiles().filterNot { it.id == profileId }
         prefs.edit().putString(KEY_PROFILES, gson.toJson(updated)).apply()
         if (getActiveProfileId() == profileId) {
@@ -63,16 +75,16 @@ class ProfileRepository(context: Context) {
         return updated
     }
 
-    fun getActiveProfile(): UserProfile? {
+    override fun getActiveProfile(): UserProfile? {
         val activeId = getActiveProfileId() ?: return null
         return getAllProfiles().find { it.id == activeId }
     }
 
-    fun getActiveProfileId(): String? {
+    override fun getActiveProfileId(): String? {
         return prefs.getString(KEY_ACTIVE_PROFILE_ID, null)
     }
 
-    fun setActiveProfileId(profileId: String?) {
+    override fun setActiveProfileId(profileId: String?) {
         if (profileId == null) {
             prefs.edit().remove(KEY_ACTIVE_PROFILE_ID).apply()
         } else {
@@ -80,7 +92,7 @@ class ProfileRepository(context: Context) {
         }
     }
 
-    fun getGuestInput(): FireInput {
+    override fun getGuestInput(): FireInput {
         val json = prefs.getString(KEY_GUEST_INPUT, null) ?: return FireInput()
         return try {
             gson.fromJson(json, FireInput::class.java) ?: FireInput()
@@ -89,7 +101,7 @@ class ProfileRepository(context: Context) {
         }
     }
 
-    fun saveGuestInput(input: FireInput) {
+    override fun saveGuestInput(input: FireInput) {
         prefs.edit().putString(KEY_GUEST_INPUT, gson.toJson(input)).apply()
     }
 }

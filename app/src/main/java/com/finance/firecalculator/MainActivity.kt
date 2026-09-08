@@ -9,7 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.finance.firecalculator.ui.FireCalculatorScreen
+import com.finance.firecalculator.ui.MainAppScaffold
 import com.finance.firecalculator.ui.FireCalculatorViewModel
 import com.finance.firecalculator.ui.theme.FIRECalculatorTheme
 
@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val viewModel: FireCalculatorViewModel = viewModel()
-                    FireCalculatorScreen(viewModel = viewModel)
+                    MainAppScaffold(viewModel = viewModel)
                 }
             }
         }

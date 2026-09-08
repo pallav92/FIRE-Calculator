@@ -155,6 +155,30 @@ object FireCalculationEngine {
             0.0
         }
 
+        val fireProgressPercent = if (targetCorpusNeeded > 0.0) {
+            ((input.currentCorpus / targetCorpusNeeded) * 100.0).coerceAtLeast(0.0)
+        } else {
+            100.0
+        }
+
+        val projectedFireProgressPercent = if (targetCorpusNeeded > 0.0) {
+            ((projectedCorpusAtRetirement / targetCorpusNeeded) * 100.0).coerceAtLeast(0.0)
+        } else {
+            100.0
+        }
+
+        // Coast FIRE: existing corpus compounding until retirement without any further contributions
+        val compoundedExisting = input.currentCorpus * (1.0 + preRoiAnnual).pow(yearsToRetire.toDouble())
+        val isCoastFireAchieved = compoundedExisting >= targetCorpusNeeded && targetCorpusNeeded > 0.0
+        val coastFireCurrentCorpusNeeded = if (1.0 + preRoiAnnual > 0.0) {
+            (targetCorpusNeeded / (1.0 + preRoiAnnual).pow(yearsToRetire.toDouble())).coerceAtLeast(0.0)
+        } else {
+            targetCorpusNeeded
+        }
+
+        val leanFireCorpusNeeded = firstYearAnnualWithdrawal * 15.0
+        val fatFireCorpusNeeded = firstYearAnnualWithdrawal * 33.0
+
         return FireResult(
             targetCorpusNeeded = targetCorpusNeeded,
             perpetualCorpusNeeded = perpetualCorpusNeeded,
@@ -167,7 +191,13 @@ object FireCalculationEngine {
             corpusExhaustionAge = exhaustionAge,
             yearsToRetirement = yearsToRetire,
             yearsInRetirement = yearsInRetire,
-            trajectory = trajectory
+            trajectory = trajectory,
+            fireProgressPercent = fireProgressPercent,
+            projectedFireProgressPercent = projectedFireProgressPercent,
+            isCoastFireAchieved = isCoastFireAchieved,
+            coastFireCurrentCorpusNeeded = coastFireCurrentCorpusNeeded,
+            leanFireCorpusNeeded = leanFireCorpusNeeded,
+            fatFireCorpusNeeded = fatFireCorpusNeeded
         )
     }
 }
