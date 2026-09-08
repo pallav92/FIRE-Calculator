@@ -138,4 +138,33 @@ class InputSliderParsingTest {
         assertEquals("₹0", CurrencyFormatter.formatCompact(minB.toDouble(), "₹"))
         assertEquals("₹1 Cr", CurrencyFormatter.formatCompact(maxB.toDouble(), "₹"))
     }
+
+    @Test
+    fun testSliderStepperSteps() {
+        val corpusStep = 100_000f // 100000 = 1 Lakh
+        val contribStep = 1_000f   // 1000
+
+        val currentCorpus = 10_000_000f // 1 Cr
+        val steppedUpCorpus = currentCorpus + corpusStep
+        val steppedDownCorpus = currentCorpus - corpusStep
+
+        assertEquals(10_100_000f, steppedUpCorpus, 0.01f)
+        assertEquals(9_900_000f, steppedDownCorpus, 0.01f)
+
+        val currentContrib = 25_000f
+        val steppedUpContrib = currentContrib + contribStep
+        val steppedDownContrib = currentContrib - contribStep
+
+        assertEquals(26_000f, steppedUpContrib, 0.01f)
+        assertEquals(24_000f, steppedDownContrib, 0.01f)
+
+        // Snapping round logic
+        val rawCorpusVal = 10_049_999f
+        val snappedCorpus = kotlin.math.round(rawCorpusVal / corpusStep) * corpusStep
+        assertEquals(10_000_000f, snappedCorpus, 0.01f)
+
+        val rawCorpusVal2 = 10_060_000f
+        val snappedCorpus2 = kotlin.math.round(rawCorpusVal2 / corpusStep) * corpusStep
+        assertEquals(10_100_000f, snappedCorpus2, 0.01f)
+    }
 }

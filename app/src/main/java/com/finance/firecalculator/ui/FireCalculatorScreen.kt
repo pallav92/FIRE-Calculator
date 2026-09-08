@@ -233,7 +233,7 @@ fun FireCalculatorScreen(
                     isAdaptiveSlider = true,
                     defaultZeroMax = 10_000_000f,
                     currencySymbol = currency,
-                    stepAmount = 10_000f,
+                    stepAmount = 100_000f,
                     inputSuffix = currency,
                     onValueChange = { viewModel.updateCurrentCorpus(it.toDouble()) },
                     onStepChange = { viewModel.updateCurrentCorpus(input.currentCorpus + it.toDouble()) }
@@ -250,7 +250,7 @@ fun FireCalculatorScreen(
                     isAdaptiveSlider = true,
                     defaultZeroMax = 50_000f,
                     currencySymbol = currency,
-                    stepAmount = 500f,
+                    stepAmount = 1_000f,
                     inputSuffix = "$currency/mo",
                     onValueChange = { viewModel.updateMonthlyContribution(it.toDouble()) },
                     onStepChange = { viewModel.updateMonthlyContribution(input.monthlyContribution + it.toDouble()) }

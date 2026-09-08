@@ -149,19 +149,6 @@ fun InputSliderSection(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Dynamic step calculation based on current value magnitude
-        val effectiveStep = remember(value, stepAmount, isAdaptiveSlider) {
-            if (!isAdaptiveSlider) {
-                stepAmount
-            } else when {
-                value >= 100_000_000f -> 10_000_000f // >= 10 Cr: step by 1 Cr
-                value >= 10_000_000f -> 1_000_000f  // >= 1 Cr: step by 10 L
-                value >= 1_000_000f -> 100_000f     // >= 10 L: step by 1 L
-                value >= 100_000f -> 10_000f        // >= 1 L: step by 10 K
-                else -> stepAmount
-            }
-        }
-
         // 2. [-] Button, Slider, [+] Button
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -170,11 +157,11 @@ fun InputSliderSection(
         ) {
             FilledTonalIconButton(
                 onClick = {
-                    val next = (value - effectiveStep).coerceAtLeast(absoluteRange.start)
+                    val next = (value - stepAmount).coerceAtLeast(absoluteRange.start)
                     if (isAdaptiveSlider && next < sliderMin) {
                         anchorValue = next
                     }
-                    onStepChange(-effectiveStep)
+                    onStepChange(-stepAmount)
                 },
                 enabled = value > absoluteRange.start,
                 modifier = Modifier.size(36.dp)
@@ -189,7 +176,13 @@ fun InputSliderSection(
             Slider(
                 value = value.coerceIn(sliderMin, sliderMax),
                 onValueChange = { newValue ->
-                    onValueChange(newValue.coerceIn(absoluteRange.start, absoluteRange.endInclusive))
+                    val stepped = if (stepAmount >= 1f) {
+                        (kotlin.math.round(newValue / stepAmount) * stepAmount)
+                            .coerceIn(absoluteRange.start, absoluteRange.endInclusive)
+                    } else {
+                        newValue.coerceIn(absoluteRange.start, absoluteRange.endInclusive)
+                    }
+                    onValueChange(stepped)
                 },
                 valueRange = sliderMin..sliderMax,
                 modifier = Modifier.weight(1f)
@@ -197,11 +190,11 @@ fun InputSliderSection(
 
             FilledTonalIconButton(
                 onClick = {
-                    val next = (value + effectiveStep).coerceAtMost(absoluteRange.endInclusive)
+                    val next = (value + stepAmount).coerceAtMost(absoluteRange.endInclusive)
                     if (isAdaptiveSlider && next > sliderMax) {
                         anchorValue = next
                     }
-                    onStepChange(effectiveStep)
+                    onStepChange(stepAmount)
                 },
                 enabled = value < absoluteRange.endInclusive,
                 modifier = Modifier.size(36.dp)
