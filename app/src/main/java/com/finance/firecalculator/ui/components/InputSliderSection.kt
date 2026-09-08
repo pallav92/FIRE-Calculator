@@ -17,12 +17,37 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.finance.firecalculator.ui.theme.FIRECalculatorTheme
 import com.finance.firecalculator.ui.util.CurrencyFormatter
 import java.util.Locale
 import kotlin.math.max
-import kotlin.math.min
+
+/**
+ * Calculates adaptive slider bounds centered around anchorValue with -50% and +150%.
+ */
+fun calculateSliderBounds(
+    anchorValue: Float,
+    absoluteRange: ClosedFloatingPointRange<Float>,
+    isAdaptive: Boolean,
+    defaultZeroMax: Float = 10_000_000f
+): Pair<Float, Float> {
+    if (!isAdaptive) {
+        return absoluteRange.start to absoluteRange.endInclusive
+    }
+    if (anchorValue <= 0f) {
+        val minB = absoluteRange.start
+        val maxB = defaultZeroMax.coerceIn(minB + 1f, absoluteRange.endInclusive)
+        return minB to maxB
+    }
+    // -50% to +150% of the value
+    val minB = (anchorValue * 0.5f).coerceAtLeast(absoluteRange.start)
+    val maxB = (anchorValue * 2.5f).coerceAtMost(absoluteRange.endInclusive)
+    return minB to maxB.coerceAtLeast(minB + 1f)
+}
 
 @Composable
 fun InputSliderSection(
@@ -37,73 +62,70 @@ fun InputSliderSection(
     inputSuffix: String = "",
     isAdaptiveSlider: Boolean = false,
     defaultZeroMax: Float = 10_000_000f,
-    currencySymbol: String = "$",
+    currencySymbol: String = "₹",
     onValueChange: (Float) -> Unit,
     onStepChange: (Float) -> Unit
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
 
-    // Anchor value used to compute the -50% to +150% slider window
+    // Anchor value used to compute the -50% to +150% slider window.
+    // Stays stable while sliding, and only re-anchors on direct input or out-of-bounds stepping.
     var anchorValue by remember { mutableStateOf(value) }
 
-    // If external value changes significantly out of the current anchor range, re-sync anchor
+    // Keep anchor in sync if external value goes outside current anchor range
     LaunchedEffect(value) {
         if (isAdaptiveSlider) {
-            val curMin = if (anchorValue <= absoluteRange.start || anchorValue == 0f) absoluteRange.start else anchorValue * 0.5f
-            val curMax = if (anchorValue <= absoluteRange.start || anchorValue == 0f) defaultZeroMax else anchorValue * 2.5f
-            if (value < curMin || value > curMax) {
+            val (minB, maxB) = calculateSliderBounds(anchorValue, absoluteRange, isAdaptive = true, defaultZeroMax = defaultZeroMax)
+            if (value < minB || value > maxB) {
                 anchorValue = value
             }
         }
     }
 
-    // Compute slider visible bounds
     val (sliderMin, sliderMax) = remember(anchorValue, absoluteRange, isAdaptiveSlider, defaultZeroMax) {
-        if (!isAdaptiveSlider) {
-            absoluteRange.start to absoluteRange.endInclusive
-        } else if (anchorValue <= absoluteRange.start || anchorValue == 0f) {
-            val minB = absoluteRange.start
-            val maxB = defaultZeroMax.coerceIn(minB + 1f, absoluteRange.endInclusive)
-            minB to maxB
-        } else {
-            // -50% to +150% of the value
-            val minB = (anchorValue * 0.5f).coerceAtLeast(absoluteRange.start)
-            val maxB = (anchorValue * 2.5f).coerceAtMost(absoluteRange.endInclusive)
-            minB to maxB.coerceAtLeast(minB + 1f)
-        }
+        calculateSliderBounds(anchorValue, absoluteRange, isAdaptiveSlider, defaultZeroMax)
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
+        // 1. Title & Value Chip Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .padding(end = 8.dp)
+            ) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
                 modifier = Modifier.clickable(enabled = allowDirectInput) {
                     showEditDialog = true
                 }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -117,15 +139,15 @@ fun InputSliderSection(
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Edit value",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
-                            modifier = Modifier.size(12.dp)
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         // Dynamic step calculation based on current value magnitude
         val effectiveStep = remember(value, stepAmount, isAdaptiveSlider) {
@@ -140,12 +162,13 @@ fun InputSliderSection(
             }
         }
 
+        // 2. [-] Button, Slider, [+] Button
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            IconButton(
+            FilledTonalIconButton(
                 onClick = {
                     val next = (value - effectiveStep).coerceAtLeast(absoluteRange.start)
                     if (isAdaptiveSlider && next < sliderMin) {
@@ -154,12 +177,12 @@ fun InputSliderSection(
                     onStepChange(-effectiveStep)
                 },
                 enabled = value > absoluteRange.start,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Remove,
                     contentDescription = "Decrease",
-                    tint = MaterialTheme.colorScheme.primary
+                    modifier = Modifier.size(18.dp)
                 )
             }
 
@@ -168,16 +191,11 @@ fun InputSliderSection(
                 onValueChange = { newValue ->
                     onValueChange(newValue.coerceIn(absoluteRange.start, absoluteRange.endInclusive))
                 },
-                onValueChangeFinished = {
-                    if (isAdaptiveSlider) {
-                        anchorValue = value
-                    }
-                },
                 valueRange = sliderMin..sliderMax,
                 modifier = Modifier.weight(1f)
             )
 
-            IconButton(
+            FilledTonalIconButton(
                 onClick = {
                     val next = (value + effectiveStep).coerceAtMost(absoluteRange.endInclusive)
                     if (isAdaptiveSlider && next > sliderMax) {
@@ -186,18 +204,74 @@ fun InputSliderSection(
                     onStepChange(effectiveStep)
                 },
                 enabled = value < absoluteRange.endInclusive,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Increase",
-                    tint = MaterialTheme.colorScheme.primary
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
 
-        // Adaptive slider range indicator caption
+        // 3. End Values Row (Pinned cleanly below slider ends)
         if (isAdaptiveSlider) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = CurrencyFormatter.formatCompact(sliderMin.toDouble(), currencySymbol),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    ) {
+                        Text(
+                            text = "-50%",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    ) {
+                        Text(
+                            text = "+150%",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                    Text(
+                        text = CurrencyFormatter.formatCompact(sliderMax.toDouble(), currencySymbol),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -205,22 +279,14 @@ fun InputSliderSection(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Slider: ${CurrencyFormatter.formatCompact(sliderMin.toDouble(), currencySymbol)} (-50%)",
+                    text = "${absoluteRange.start.toInt()}$inputSuffix",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    fontSize = 10.sp
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Tap value to enter any number up to ${CurrencyFormatter.formatCompact(absoluteRange.endInclusive.toDouble(), currencySymbol)}",
+                    text = "${absoluteRange.endInclusive.toInt()}$inputSuffix",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                    fontSize = 10.sp
-                )
-                Text(
-                    text = "${CurrencyFormatter.formatCompact(sliderMax.toDouble(), currencySymbol)} (+150%)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    fontSize = 10.sp
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -393,5 +459,116 @@ fun parseInputNumber(raw: String): Float? {
         }
     } catch (e: Exception) {
         null
+    }
+}
+
+// -------------------------------------------------------------------------
+// COMPOSE PREVIEWS: Testing UI with 1.25 Crores and Large Values
+// -------------------------------------------------------------------------
+
+@Preview(name = "End Value 1.25 Crores (50 Lakhs current)", showBackground = true, widthDp = 360)
+@Composable
+fun PreviewSliderEndValueOnePointTwoFiveCrores() {
+    FIRECalculatorTheme {
+        Surface(modifier = Modifier.padding(16.dp)) {
+            // Current = 50 Lakhs (5,000,000). -50% = 25 Lakhs. +150% = 1.25 Crores!
+            var currentVal by remember { mutableFloatStateOf(5_000_000f) }
+            InputSliderSection(
+                title = "Current Retirement Corpus",
+                subtitle = "Allowed: 0 to 99 Crores",
+                formattedValue = CurrencyFormatter.formatCompact(currentVal.toDouble(), "₹"),
+                value = currentVal,
+                absoluteRange = 0f..990_000_000f,
+                isAdaptiveSlider = true,
+                currencySymbol = "₹",
+                onValueChange = { currentVal = it },
+                onStepChange = { currentVal += it }
+            )
+        }
+    }
+}
+
+@Preview(name = "Current Value 1.25 Crores", showBackground = true, widthDp = 360)
+@Composable
+fun PreviewSliderValueAtOnePointTwoFiveCrores() {
+    FIRECalculatorTheme {
+        Surface(modifier = Modifier.padding(16.dp)) {
+            // Current = 1.25 Crores (12,500,000). -50% = 62.5 Lakhs. +150% = 3.125 Crores!
+            var currentVal by remember { mutableFloatStateOf(12_500_000f) }
+            InputSliderSection(
+                title = "Current Retirement Corpus",
+                subtitle = "Allowed: 0 to 99 Crores",
+                formattedValue = CurrencyFormatter.formatCompact(currentVal.toDouble(), "₹"),
+                value = currentVal,
+                absoluteRange = 0f..990_000_000f,
+                isAdaptiveSlider = true,
+                currencySymbol = "₹",
+                onValueChange = { currentVal = it },
+                onStepChange = { currentVal += it }
+            )
+        }
+    }
+}
+
+@Preview(name = "Narrow Screen 320dp - 1.25 Crores", showBackground = true, widthDp = 320)
+@Composable
+fun PreviewSliderNarrowScreen() {
+    FIRECalculatorTheme {
+        Surface(modifier = Modifier.padding(12.dp)) {
+            var currentVal by remember { mutableFloatStateOf(5_000_000f) }
+            InputSliderSection(
+                title = "Current Retirement Corpus",
+                subtitle = "Allowed: 0 to 99 Crores",
+                formattedValue = CurrencyFormatter.formatCompact(currentVal.toDouble(), "₹"),
+                value = currentVal,
+                absoluteRange = 0f..990_000_000f,
+                isAdaptiveSlider = true,
+                currencySymbol = "₹",
+                onValueChange = { currentVal = it },
+                onStepChange = { currentVal += it }
+            )
+        }
+    }
+}
+
+@Preview(name = "High Value 50 Crores (max 99 Crores)", showBackground = true, widthDp = 360)
+@Composable
+fun PreviewSliderFiftyCrores() {
+    FIRECalculatorTheme {
+        Surface(modifier = Modifier.padding(16.dp)) {
+            var currentVal by remember { mutableFloatStateOf(500_000_000f) }
+            InputSliderSection(
+                title = "Current Retirement Corpus",
+                subtitle = "Allowed: 0 to 99 Crores",
+                formattedValue = CurrencyFormatter.formatCompact(currentVal.toDouble(), "₹"),
+                value = currentVal,
+                absoluteRange = 0f..990_000_000f,
+                isAdaptiveSlider = true,
+                currencySymbol = "₹",
+                onValueChange = { currentVal = it },
+                onStepChange = { currentVal += it }
+            )
+        }
+    }
+}
+
+@Preview(name = "Zero Corpus Initial", showBackground = true, widthDp = 360)
+@Composable
+fun PreviewSliderZeroCorpus() {
+    FIRECalculatorTheme {
+        Surface(modifier = Modifier.padding(16.dp)) {
+            var currentVal by remember { mutableFloatStateOf(0f) }
+            InputSliderSection(
+                title = "Current Retirement Corpus",
+                subtitle = "Allowed: 0 to 99 Crores",
+                formattedValue = CurrencyFormatter.formatCompact(currentVal.toDouble(), "₹"),
+                value = currentVal,
+                absoluteRange = 0f..990_000_000f,
+                isAdaptiveSlider = true,
+                currencySymbol = "₹",
+                onValueChange = { currentVal = it },
+                onStepChange = { currentVal += it }
+            )
+        }
     }
 }

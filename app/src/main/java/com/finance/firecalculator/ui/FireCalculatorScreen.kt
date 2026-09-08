@@ -226,7 +226,7 @@ fun FireCalculatorScreen(
             InputSectionCard(title = "Current Corpus & Monthly Savings") {
                 InputSliderSection(
                     title = "Current Retirement Corpus",
-                    subtitle = "Allowed: 0 to 99 Crores. Slider matches -50% to +150%",
+                    subtitle = "Existing investments (0 to 99 Cr)",
                     formattedValue = CurrencyFormatter.formatCompact(input.currentCorpus, currency),
                     value = input.currentCorpus.toFloat(),
                     absoluteRange = 0f..990_000_000f,
@@ -243,7 +243,7 @@ fun FireCalculatorScreen(
 
                 InputSliderSection(
                     title = "Monthly Contribution",
-                    subtitle = "Allowed: 100 to 10 Lakhs (1,000,000). Slider matches -50% to +150%",
+                    subtitle = "Invested monthly (100 to 10 Lakhs)",
                     formattedValue = "${CurrencyFormatter.formatCompact(input.monthlyContribution, currency)}/mo",
                     value = input.monthlyContribution.toFloat(),
                     absoluteRange = 100f..1_000_000f,
@@ -261,7 +261,7 @@ fun FireCalculatorScreen(
             InputSectionCard(title = "Post-Retirement Living & Inflation") {
                 InputSliderSection(
                     title = "Monthly Withdrawal Needed",
-                    subtitle = "In today's purchasing power (Slider matches -50% to +150%)",
+                    subtitle = "Monthly living expenses in retirement",
                     formattedValue = "${CurrencyFormatter.formatCompact(input.monthlyWithdrawalPostRetirement, currency)}/mo",
                     value = input.monthlyWithdrawalPostRetirement.toFloat(),
                     absoluteRange = 500f..50_000_000f,

@@ -7,15 +7,15 @@ data class FireInput(
     val currentAge: Int = 30,
     val retirementAge: Int = 50,
     val lifeExpectancy: Int = 85,
-    val currentCorpus: Double = 50_000.0,
-    val monthlyContribution: Double = 1_500.0,
-    val monthlyWithdrawalPostRetirement: Double = 3_500.0,
+    val currentCorpus: Double = 1_000_000.0,
+    val monthlyContribution: Double = 25_000.0,
+    val monthlyWithdrawalPostRetirement: Double = 50_000.0,
     val isInflationAdjusted: Boolean = true,
     val inflationRatePercent: Double = 6.0,
     val expectedRoiPercent: Double = 10.0,
     val postRetirementRoiPercent: Double = 8.0,
     val isCustomPostRetirementRoi: Boolean = false,
-    val currencySymbol: String = "$"
+    val currencySymbol: String = "₹"
 ) {
     val effectivePostRetirementRoiPercent: Double
         get() = if (isCustomPostRetirementRoi) postRetirementRoiPercent else expectedRoiPercent
