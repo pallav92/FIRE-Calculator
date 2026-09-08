@@ -186,7 +186,7 @@ fun FireCalculatorScreen(
                     title = "Current Age",
                     formattedValue = "${input.currentAge} yrs",
                     value = input.currentAge.toFloat(),
-                    valueRange = 18f..80f,
+                    absoluteRange = 18f..80f,
                     stepAmount = 1f,
                     inputSuffix = "yrs",
                     onValueChange = { viewModel.updateCurrentAge(it.toInt()) },
@@ -200,7 +200,7 @@ fun FireCalculatorScreen(
                     subtitle = "Age at which you want to retire (${input.retirementAge - input.currentAge} yrs left)",
                     formattedValue = "${input.retirementAge} yrs",
                     value = input.retirementAge.toFloat(),
-                    valueRange = input.currentAge.toFloat()..85f,
+                    absoluteRange = input.currentAge.toFloat()..85f,
                     stepAmount = 1f,
                     inputSuffix = "yrs",
                     onValueChange = { viewModel.updateRetirementAge(it.toInt()) },
@@ -214,7 +214,7 @@ fun FireCalculatorScreen(
                     subtitle = "Planning horizon for fund longevity",
                     formattedValue = "${input.lifeExpectancy} yrs",
                     value = input.lifeExpectancy.toFloat(),
-                    valueRange = (input.retirementAge + 1).toFloat()..100f,
+                    absoluteRange = (input.retirementAge + 1).toFloat()..100f,
                     stepAmount = 1f,
                     inputSuffix = "yrs",
                     onValueChange = { viewModel.updateLifeExpectancy(it.toInt()) },
@@ -226,11 +226,14 @@ fun FireCalculatorScreen(
             InputSectionCard(title = "Current Corpus & Monthly Savings") {
                 InputSliderSection(
                     title = "Current Retirement Corpus",
-                    subtitle = "Existing investments & accumulated savings",
+                    subtitle = "Allowed: 0 to 99 Crores. Slider matches -50% to +150%",
                     formattedValue = CurrencyFormatter.formatCompact(input.currentCorpus, currency),
                     value = input.currentCorpus.toFloat(),
-                    valueRange = 0f..2_000_000f,
-                    stepAmount = 5_000f,
+                    absoluteRange = 0f..990_000_000f,
+                    isAdaptiveSlider = true,
+                    defaultZeroMax = 10_000_000f,
+                    currencySymbol = currency,
+                    stepAmount = 10_000f,
                     inputSuffix = currency,
                     onValueChange = { viewModel.updateCurrentCorpus(it.toDouble()) },
                     onStepChange = { viewModel.updateCurrentCorpus(input.currentCorpus + it.toDouble()) }
@@ -240,26 +243,32 @@ fun FireCalculatorScreen(
 
                 InputSliderSection(
                     title = "Monthly Contribution",
-                    subtitle = "Amount invested monthly until retirement",
+                    subtitle = "Allowed: 100 to 10 Lakhs (1,000,000). Slider matches -50% to +150%",
                     formattedValue = "${CurrencyFormatter.formatCompact(input.monthlyContribution, currency)}/mo",
                     value = input.monthlyContribution.toFloat(),
-                    valueRange = 0f..50_000f,
-                    stepAmount = 100f,
+                    absoluteRange = 100f..1_000_000f,
+                    isAdaptiveSlider = true,
+                    defaultZeroMax = 50_000f,
+                    currencySymbol = currency,
+                    stepAmount = 500f,
                     inputSuffix = "$currency/mo",
                     onValueChange = { viewModel.updateMonthlyContribution(it.toDouble()) },
                     onStepChange = { viewModel.updateMonthlyContribution(input.monthlyContribution + it.toDouble()) }
                 )
             }
 
-            // 3. Post-Retirement Withdrawal & Inflation Section
+            // 3. Post-Retirement Living & Inflation Section
             InputSectionCard(title = "Post-Retirement Living & Inflation") {
                 InputSliderSection(
                     title = "Monthly Withdrawal Needed",
-                    subtitle = "In today's purchasing power",
+                    subtitle = "In today's purchasing power (Slider matches -50% to +150%)",
                     formattedValue = "${CurrencyFormatter.formatCompact(input.monthlyWithdrawalPostRetirement, currency)}/mo",
                     value = input.monthlyWithdrawalPostRetirement.toFloat(),
-                    valueRange = 500f..50_000f,
-                    stepAmount = 250f,
+                    absoluteRange = 500f..50_000_000f,
+                    isAdaptiveSlider = true,
+                    defaultZeroMax = 100_000f,
+                    currencySymbol = currency,
+                    stepAmount = 1_000f,
                     inputSuffix = "$currency/mo",
                     onValueChange = { viewModel.updateMonthlyWithdrawal(it.toDouble()) },
                     onStepChange = { viewModel.updateMonthlyWithdrawal(input.monthlyWithdrawalPostRetirement + it.toDouble()) }
@@ -302,7 +311,7 @@ fun FireCalculatorScreen(
                             subtitle = "Annual cost of living increase",
                             formattedValue = CurrencyFormatter.formatPercent(input.inflationRatePercent),
                             value = input.inflationRatePercent.toFloat(),
-                            valueRange = 1f..15f,
+                            absoluteRange = 1f..15f,
                             stepAmount = 0.5f,
                             inputSuffix = "%",
                             onValueChange = { viewModel.updateInflationRate(it.toDouble()) },
@@ -319,7 +328,7 @@ fun FireCalculatorScreen(
                     subtitle = "Average portfolio growth rate",
                     formattedValue = CurrencyFormatter.formatPercent(input.expectedRoiPercent),
                     value = input.expectedRoiPercent.toFloat(),
-                    valueRange = 1f..25f,
+                    absoluteRange = 1f..25f,
                     stepAmount = 0.5f,
                     inputSuffix = "%",
                     onValueChange = { viewModel.updateExpectedRoi(it.toDouble()) },
@@ -359,7 +368,7 @@ fun FireCalculatorScreen(
                             subtitle = "Return on corpus while in retirement",
                             formattedValue = CurrencyFormatter.formatPercent(input.postRetirementRoiPercent),
                             value = input.postRetirementRoiPercent.toFloat(),
-                            valueRange = 1f..20f,
+                            absoluteRange = 1f..20f,
                             stepAmount = 0.5f,
                             inputSuffix = "%",
                             onValueChange = { viewModel.updatePostRetirementRoi(it.toDouble()) },
