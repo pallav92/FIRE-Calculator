@@ -102,4 +102,32 @@ class FireCalculationEngineTest {
         assertEquals(48_000.0, result.firstYearAnnualWithdrawal, 0.01)
         assertEquals(1_200_000.0, result.perpetualCorpusNeeded, 0.01)
     }
+
+    @Test
+    fun testZeroContributionsPostRetirement() {
+        val input = FireInput(
+            currentAge = 30,
+            retirementAge = 50,
+            lifeExpectancy = 80,
+            currentCorpus = 50_000_000.0, // 5 Crores funded corpus
+            monthlyContribution = 50_000.0,
+            monthlyWithdrawalPostRetirement = 100_000.0
+        )
+        val result = FireCalculationEngine.calculate(input)
+
+        // Trajectory points during accumulation phase (age 31 to 50) must have contributions
+        val accumulationPoints = result.trajectory.filter { !it.isRetired && it.yearOffset > 0 }
+        assertTrue("Accumulation points exist", accumulationPoints.isNotEmpty())
+        accumulationPoints.forEach { pt ->
+            assertEquals("Contribution during accumulation should be 12 * 50,000", 600_000.0, pt.annualContribution, 0.01)
+        }
+
+        // Trajectory points during retirement phase (age 51 to 80) must have ZERO contributions
+        val retirementPoints = result.trajectory.filter { it.isRetired }
+        assertTrue("Retirement points exist", retirementPoints.isNotEmpty())
+        retirementPoints.forEach { pt ->
+            assertEquals("Contribution post-retirement at age ${pt.age} MUST be zero", 0.0, pt.annualContribution, 0.0)
+            assertTrue("Withdrawal post-retirement should occur while funded", pt.annualWithdrawal > 0.0)
+        }
+    }
 }
