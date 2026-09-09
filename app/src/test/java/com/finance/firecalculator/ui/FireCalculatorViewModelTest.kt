@@ -205,4 +205,11 @@ class FireCalculatorViewModelTest {
         assertTrue("Deleting active profile should fallback to Guest Mode", viewModel.uiState.value.isGuest)
         assertNull(viewModel.uiState.value.activeProfile)
     }
+
+    @Test
+    fun testApplicationConstructorExistsForAndroidViewModelFactory() {
+        // ViewModelProvider.AndroidViewModelFactory requires a public constructor taking exactly (Application)
+        val constructor = FireCalculatorViewModel::class.java.getConstructor(android.app.Application::class.java)
+        assertNotNull("FireCalculatorViewModel must have a public constructor(Application) for ViewModelProvider", constructor)
+    }
 }

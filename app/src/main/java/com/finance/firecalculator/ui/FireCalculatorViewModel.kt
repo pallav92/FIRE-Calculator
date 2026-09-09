@@ -33,8 +33,10 @@ data class FireUiState(
 
 class FireCalculatorViewModel(
     application: Application,
-    private val repository: IProfileRepository = ProfileRepository(application)
+    private val repository: IProfileRepository
 ) : AndroidViewModel(application) {
+
+    constructor(application: Application) : this(application, ProfileRepository(application))
 
     constructor(repository: IProfileRepository) : this(Application(), repository)
 
