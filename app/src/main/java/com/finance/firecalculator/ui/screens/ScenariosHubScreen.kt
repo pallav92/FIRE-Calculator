@@ -1,9 +1,14 @@
 package com.finance.firecalculator.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,8 +16,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finance.firecalculator.domain.FireCalculationEngine
@@ -291,22 +298,28 @@ fun ScenariosHubScreen(
                 items(savedProfiles, key = { it.id }) { profile ->
                     val isCurrent = activeProfile?.id == profile.id
                     val profResult = remember(profile) { FireCalculationEngine.calculate(profile.input) }
+                    val animatedBorderColor by animateColorAsState(
+                        targetValue = if (isCurrent) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                        animationSpec = tween(durationMillis = 200),
+                        label = "profileBorderColor"
+                    )
 
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { viewModel.switchToProfile(profile.id) },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isCurrent) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            } else {
-                                MaterialTheme.colorScheme.surface
-                            }
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 2.dp else 1.dp)
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, animatedBorderColor),
+                        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrent) 3.dp else 1.dp)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -314,28 +327,65 @@ fun ScenariosHubScreen(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(
-                                        imageVector = if (isCurrent) Icons.Default.CheckCircle else Icons.Default.Folder,
-                                        contentDescription = null,
-                                        tint = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Column {
-                                        Text(
-                                            text = profile.name,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                    Surface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(46.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = profile.name.take(1).uppercase(Locale.getDefault()),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = profile.name,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (isCurrent) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = MaterialTheme.colorScheme.primary
+                                                ) {
+                                                    Text(
+                                                        text = "ACTIVE",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onPrimary,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                         Text(
                                             text = "Modified ${dateFormatter.format(Date(profile.lastModified))}",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
 
-                                Row {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
                                     IconButton(
                                         onClick = { profileToDuplicate = profile },
                                         modifier = Modifier.size(32.dp)
@@ -358,32 +408,88 @@ fun ScenariosHubScreen(
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
+                                    // Radio Check Indicator
+                                    Box(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isCurrent) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isCurrent) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .clip(CircleShape)
+                                                    .background(MaterialTheme.colorScheme.surface)
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                            Spacer(modifier = Modifier.height(10.dp))
-
+                            // Metrics Tag Pills
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(
-                                    text = "Target: ${CurrencyFormatter.formatCompact(profResult.targetCorpusNeeded, currency)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "Retire Age: ${profile.input.retirementAge}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "ROI: ${profile.input.expectedRoiPercent}%",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isCurrent) MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                ) {
+                                    Text(
+                                        text = "Target: ${CurrencyFormatter.formatCompact(profResult.targetCorpusNeeded, currency)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                        maxLines = 1
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isCurrent) MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                ) {
+                                    Text(
+                                        text = "Retire @ ${profile.input.retirementAge}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                        maxLines = 1
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isCurrent) MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                ) {
+                                    Text(
+                                        text = "ROI: ${profile.input.expectedRoiPercent}%",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }

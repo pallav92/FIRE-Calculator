@@ -1,7 +1,10 @@
 package com.finance.firecalculator.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -14,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.finance.firecalculator.domain.model.Country
 import com.finance.firecalculator.ui.FireCalculatorViewModel
 import com.finance.firecalculator.ui.components.FireGaugeCard
 import com.finance.firecalculator.ui.components.ProjectionChart
@@ -29,6 +33,7 @@ fun FireVisualizerScreen(
     val uiState by viewModel.uiState.collectAsState()
     val input = uiState.input
     val result = uiState.result
+    val country = input.country
     val currency = input.currencySymbol
 
     var showCurrencyMenu by remember { mutableStateOf(false) }
@@ -44,6 +49,39 @@ fun FireVisualizerScreen(
                     )
                 },
                 actions = {
+                    // Country switcher pill selector
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .clickable { viewModel.setShowCountrySelectionDialog(true) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = country.flagEmoji,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                text = country.code,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Switch Country",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
                     // Profile chip navigating to Scenarios tab
                     AssistChip(
                         onClick = { viewModel.selectTab(AppTab.Profiles) },
@@ -113,7 +151,7 @@ fun FireVisualizerScreen(
             // 1. FIRE Gauge Loader Card
             FireGaugeCard(input = input, result = result)
 
-            // 2. Milestone Countdown & Sustainability Card
+            // 2. Milestone Countdown & Summary Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -170,7 +208,7 @@ fun FireVisualizerScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${CurrencyFormatter.formatCompact(input.monthlyContribution, currency)}/mo",
+                                text = "${CurrencyFormatter.formatCompact(input.effectiveMonthlyContribution, currency)}/mo",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold
                             )
@@ -207,144 +245,286 @@ fun FireVisualizerScreen(
                 }
             }
 
-            // 3. CTA to Tune Plan
+            // 3. Country-Specific Schemes Analytics Card
+            if (country == Country.USA && result.schemeAnalytics.earlyRetirementBridgeYears > 0) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "🇺🇸 401(k) Early Retirement Bridge",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (result.schemeAnalytics.isEarlyBridgeCovered) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)
+                            ) {
+                                Text(
+                                    text = if (result.schemeAnalytics.isEarlyBridgeCovered) "Bridge Covered" else "Penalty Risk",
+                                    color = if (result.schemeAnalytics.isEarlyBridgeCovered) Color(0xFF2E7D32) else Color(0xFFE65100),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "Because retirement is targeted at age ${input.retirementAge}, you need ${result.schemeAnalytics.earlyRetirementBridgeYears} years of living expenses before reaching age 59½ without 401(k) 10% penalties.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Bridge Outflow Needed", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(CurrencyFormatter.formatCompact(result.schemeAnalytics.earlyBridgeCorpusNeeded, currency), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Projected Brokerage", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(CurrencyFormatter.formatCompact(result.schemeAnalytics.projectedTaxableBrokerageAtRetirement, currency), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                            }
+                        }
+                    }
+                }
+            } else if (country == Country.INDIA && input.useSchemeBreakdown && result.schemeAnalytics.npsProjectedCorpusAtRetirement > 0) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "🇮🇳 NPS Retirement Milestone Breakdown",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "At age 60, NPS allows 60% as a tax-free lump sum and mandates 40% into a regular monthly annuity pension.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Tax-Free Lump Sum (60%)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(CurrencyFormatter.formatCompact(result.schemeAnalytics.npsTaxFreeLumpSum, currency), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Monthly Pension (40% Annuity)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("~${CurrencyFormatter.formatCompact(result.schemeAnalytics.npsMonthlyEstimatedPension, currency)}/mo", fontWeight = FontWeight.Bold, color = Color(0xFF198754), style = MaterialTheme.typography.titleSmall)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. FIRE Tiers Breakdown Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "FIRE Milestone Tiers",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    // Coast FIRE
+                    TierProgressRow(
+                        tierName = "Coast FIRE",
+                        description = "Existing savings will compound to FIRE target with ₹0 future contributions",
+                        targetAmount = result.coastFireCurrentCorpusNeeded,
+                        isAchieved = result.isCoastFireAchieved,
+                        currency = currency
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                    // Lean FIRE
+                    TierProgressRow(
+                        tierName = "Lean FIRE (15x)",
+                        description = "Basic survival buffer covering essential expenses only",
+                        targetAmount = result.leanFireCorpusNeeded,
+                        isAchieved = result.projectedCorpusAtRetirement >= result.leanFireCorpusNeeded,
+                        currency = currency
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                    // Standard FIRE
+                    TierProgressRow(
+                        tierName = "Standard FIRE (25x)",
+                        description = "Full independence matching your targeted lifestyle and inflation",
+                        targetAmount = result.targetCorpusNeeded,
+                        isAchieved = result.isFireAchieved,
+                        currency = currency
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                    // Fat FIRE
+                    TierProgressRow(
+                        tierName = "Fat FIRE (33x)",
+                        description = "Abundant financial freedom with high safety margins",
+                        targetAmount = result.fatFireCorpusNeeded,
+                        isAchieved = result.projectedCorpusAtRetirement >= result.fatFireCorpusNeeded,
+                        currency = currency
+                    )
+                }
+            }
+
+            // 5. Trajectory Chart
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Portfolio Projection",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Age ${input.currentAge} to ${input.lifeExpectancy}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // Retirement boundary marker legend
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ) {
+                            Text(
+                                text = "Retire @ ${input.retirementAge}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    ProjectionChart(
+                        result = result,
+                        currencySymbol = currency,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp)
+                    )
+                }
+            }
+
+            // 6. Quick CTA to Plan Studio
             Button(
                 onClick = { viewModel.selectTab(AppTab.Calculator) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(imageVector = Icons.Default.Tune, contentDescription = null)
+                Icon(imageVector = Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Tune Plan & Assumptions",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("Tune Plan Assumptions & Schemes", fontWeight = FontWeight.SemiBold)
             }
 
-            // 4. FIRE Tiers & Benchmarks
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text(
-                        text = "FIRE Tiers & Milestones",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Coast FIRE Card
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (result.isCoastFireAchieved) Color(0xFF198754).copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Coast FIRE",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Today's corpus needed: ${CurrencyFormatter.formatCompact(result.coastFireCurrentCorpusNeeded, currency)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = if (result.isCoastFireAchieved) Color(0xFF198754) else MaterialTheme.colorScheme.surfaceVariant
-                            ) {
-                                Text(
-                                    text = if (result.isCoastFireAchieved) "Achieved! 🏖️" else "In Progress",
-                                    color = if (result.isCoastFireAchieved) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Lean, Standard, Fat FIRE Rows
-                    TierRow(
-                        name = "Lean FIRE",
-                        desc = "15x Annual Expenses (Basic)",
-                        amount = CurrencyFormatter.formatCompact(result.leanFireCorpusNeeded, currency)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TierRow(
-                        name = "Standard FIRE",
-                        desc = "25x Annual Expenses (4% Rule)",
-                        amount = CurrencyFormatter.formatCompact(result.perpetualCorpusNeeded, currency),
-                        isHighlight = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TierRow(
-                        name = "Fat FIRE",
-                        desc = "33x Annual Expenses (Abundance)",
-                        amount = CurrencyFormatter.formatCompact(result.fatFireCorpusNeeded, currency)
-                    )
-                }
-            }
-
-            // 5. Portfolio Trajectory Snapshot
-            ProjectionChart(result = result, currencySymbol = currency)
-
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-private fun TierRow(
-    name: String,
-    desc: String,
-    amount: String,
-    isHighlight: Boolean = false
+private fun TierProgressRow(
+    tierName: String,
+    description: String,
+    targetAmount: Double,
+    isAchieved: Boolean,
+    currency: String
 ) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = if (isHighlight) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Text(
-                    text = name,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = tierName,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = if (isHighlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = desc,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (isAchieved) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFFE8F5E9)
+                    ) {
+                        Text(
+                            text = "Achieved",
+                            color = Color(0xFF2E7D32),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
-
             Text(
-                text = amount,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp
             )
         }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Text(
+            text = CurrencyFormatter.formatCompact(targetAmount, currency),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = if (isAchieved) Color(0xFF198754) else MaterialTheme.colorScheme.onSurface
+        )
     }
 }

@@ -2,6 +2,7 @@ package com.finance.firecalculator.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.finance.firecalculator.domain.model.Country
 import com.finance.firecalculator.domain.model.FireInput
 import com.finance.firecalculator.domain.model.UserProfile
 import com.google.gson.Gson
@@ -18,6 +19,10 @@ interface IProfileRepository {
     fun setActiveProfileId(profileId: String?)
     fun getGuestInput(): FireInput
     fun saveGuestInput(input: FireInput)
+    fun isOnboardingCompleted(): Boolean
+    fun setOnboardingCompleted(completed: Boolean)
+    fun getSelectedCountry(): Country
+    fun setSelectedCountry(country: Country)
 }
 
 class ProfileRepository(context: Context) : IProfileRepository {
@@ -28,6 +33,8 @@ class ProfileRepository(context: Context) : IProfileRepository {
         private const val KEY_PROFILES = "saved_profiles"
         private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
         private const val KEY_GUEST_INPUT = "guest_fire_input"
+        private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
+        private const val KEY_SELECTED_COUNTRY = "selected_country"
     }
 
     override fun getAllProfiles(): List<UserProfile> {
@@ -93,15 +100,35 @@ class ProfileRepository(context: Context) : IProfileRepository {
     }
 
     override fun getGuestInput(): FireInput {
-        val json = prefs.getString(KEY_GUEST_INPUT, null) ?: return FireInput()
+        val json = prefs.getString(KEY_GUEST_INPUT, null)
+        if (json == null) {
+            return FireInput.defaultForCountry(getSelectedCountry())
+        }
         return try {
-            gson.fromJson(json, FireInput::class.java) ?: FireInput()
+            gson.fromJson(json, FireInput::class.java) ?: FireInput.defaultForCountry(getSelectedCountry())
         } catch (e: Exception) {
-            FireInput()
+            FireInput.defaultForCountry(getSelectedCountry())
         }
     }
 
     override fun saveGuestInput(input: FireInput) {
         prefs.edit().putString(KEY_GUEST_INPUT, gson.toJson(input)).apply()
+    }
+
+    override fun isOnboardingCompleted(): Boolean {
+        return prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
+    }
+
+    override fun setOnboardingCompleted(completed: Boolean) {
+        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply()
+    }
+
+    override fun getSelectedCountry(): Country {
+        val code = prefs.getString(KEY_SELECTED_COUNTRY, Country.INDIA.code)
+        return Country.entries.find { it.code == code } ?: Country.INDIA
+    }
+
+    override fun setSelectedCountry(country: Country) {
+        prefs.edit().putString(KEY_SELECTED_COUNTRY, country.code).apply()
     }
 }

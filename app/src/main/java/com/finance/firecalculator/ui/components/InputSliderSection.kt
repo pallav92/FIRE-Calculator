@@ -1,7 +1,9 @@
 package com.finance.firecalculator.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -86,8 +88,21 @@ fun InputSliderSection(
         calculateSliderBounds(anchorValue, absoluteRange, isAdaptiveSlider, defaultZeroMax)
     }
 
+    // Format step label for the central capsule stepper
+    val stepLabel = remember(stepAmount, isAdaptiveSlider, currencySymbol, inputSuffix) {
+        if (isAdaptiveSlider) {
+            "±${CurrencyFormatter.formatCompact(stepAmount.toDouble(), currencySymbol)}"
+        } else if (inputSuffix.isNotEmpty()) {
+            val formattedNum = if (stepAmount % 1f == 0f) stepAmount.toInt().toString() else String.format(Locale.getDefault(), "%.1f", stepAmount)
+            "±$formattedNum$inputSuffix"
+        } else {
+            val formattedNum = if (stepAmount % 1f == 0f) stepAmount.toInt().toString() else String.format(Locale.getDefault(), "%.1f", stepAmount)
+            "±$formattedNum"
+        }
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
-        // 1. Title & Value Chip Header
+        // 1. Title & Elevated Interactive Value Pill Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -96,12 +111,12 @@ fun InputSliderSection(
             Column(
                 modifier = Modifier
                     .weight(1f, fill = false)
-                    .padding(end = 8.dp)
+                    .padding(end = 12.dp)
             ) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -118,16 +133,17 @@ fun InputSliderSection(
             }
 
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
                 modifier = Modifier.clickable(enabled = allowDirectInput) {
                     showEditDialog = true
                 }
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
                         text = formattedValue,
@@ -138,87 +154,46 @@ fun InputSliderSection(
                     if (allowDirectInput) {
                         Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit value",
+                            contentDescription = "Edit value directly",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                            modifier = Modifier.size(13.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
 
-        // 2. [-] Button, Slider, [+] Button
+        // 2. Full-Width Scrubbing Slider
+        Slider(
+            value = value.coerceIn(sliderMin, sliderMax),
+            onValueChange = { newValue ->
+                val stepped = if (stepAmount >= 1f) {
+                    (kotlin.math.round(newValue / stepAmount) * stepAmount)
+                        .coerceIn(absoluteRange.start, absoluteRange.endInclusive)
+                } else {
+                    newValue.coerceIn(absoluteRange.start, absoluteRange.endInclusive)
+                }
+                onValueChange(stepped)
+            },
+            valueRange = sliderMin..sliderMax,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        // 3. Ergonomic Bottom Bar: [Min Label] --- [Unified Capsule Stepper] --- [Max Label]
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            FilledTonalIconButton(
-                onClick = {
-                    val next = (value - stepAmount).coerceAtLeast(absoluteRange.start)
-                    if (isAdaptiveSlider && next < sliderMin) {
-                        anchorValue = next
-                    }
-                    onStepChange(-stepAmount)
-                },
-                enabled = value > absoluteRange.start,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Remove,
-                    contentDescription = "Decrease",
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            Slider(
-                value = value.coerceIn(sliderMin, sliderMax),
-                onValueChange = { newValue ->
-                    val stepped = if (stepAmount >= 1f) {
-                        (kotlin.math.round(newValue / stepAmount) * stepAmount)
-                            .coerceIn(absoluteRange.start, absoluteRange.endInclusive)
-                    } else {
-                        newValue.coerceIn(absoluteRange.start, absoluteRange.endInclusive)
-                    }
-                    onValueChange(stepped)
-                },
-                valueRange = sliderMin..sliderMax,
-                modifier = Modifier.weight(1f)
-            )
-
-            FilledTonalIconButton(
-                onClick = {
-                    val next = (value + stepAmount).coerceAtMost(absoluteRange.endInclusive)
-                    if (isAdaptiveSlider && next > sliderMax) {
-                        anchorValue = next
-                    }
-                    onStepChange(stepAmount)
-                },
-                enabled = value < absoluteRange.endInclusive,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Increase",
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-
-        // 3. End Values Row (Pinned cleanly below slider ends)
-        if (isAdaptiveSlider) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            // Left: Min Boundary
+            if (isAdaptiveSlider) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Text(
                         text = CurrencyFormatter.formatCompact(sliderMin.toDouble(), currencySymbol),
@@ -235,14 +210,86 @@ fun InputSliderSection(
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                         )
                     }
                 }
+            } else {
+                Text(
+                    text = "${absoluteRange.start.toInt()}$inputSuffix",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
+            // Center: Unified Capsule Stepper Control [ - | Step | + ]
+            val canDecrease = value > absoluteRange.start
+            val canIncrease = value < absoluteRange.endInclusive
+
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+                ) {
+                    IconButton(
+                        onClick = {
+                            val next = (value - stepAmount).coerceAtLeast(absoluteRange.start)
+                            if (isAdaptiveSlider && next < sliderMin) {
+                                anchorValue = next
+                            }
+                            onStepChange(-stepAmount)
+                        },
+                        enabled = canDecrease,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Remove,
+                            contentDescription = "Decrease by step",
+                            modifier = Modifier.size(16.dp),
+                            tint = if (canDecrease) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                        )
+                    }
+
+                    Text(
+                        text = stepLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 6.dp)
+                    )
+
+                    IconButton(
+                        onClick = {
+                            val next = (value + stepAmount).coerceAtMost(absoluteRange.endInclusive)
+                            if (isAdaptiveSlider && next > sliderMax) {
+                                anchorValue = next
+                            }
+                            onStepChange(stepAmount)
+                        },
+                        enabled = canIncrease,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Increase by step",
+                            modifier = Modifier.size(16.dp),
+                            tint = if (canIncrease) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                        )
+                    }
+                }
+            }
+
+            // Right: Max Boundary
+            if (isAdaptiveSlider) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
@@ -253,7 +300,7 @@ fun InputSliderSection(
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                         )
                     }
                     Text(
@@ -263,22 +310,11 @@ fun InputSliderSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "${absoluteRange.start.toInt()}$inputSuffix",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            } else {
                 Text(
                     text = "${absoluteRange.endInclusive.toInt()}$inputSuffix",
                     style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

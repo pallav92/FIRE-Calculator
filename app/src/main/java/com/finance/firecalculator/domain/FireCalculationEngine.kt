@@ -1,7 +1,9 @@
 package com.finance.firecalculator.domain
 
+import com.finance.firecalculator.domain.model.Country
 import com.finance.firecalculator.domain.model.FireInput
 import com.finance.firecalculator.domain.model.FireResult
+import com.finance.firecalculator.domain.model.SchemeAnalytics
 import com.finance.firecalculator.domain.model.YearlyTrajectoryPoint
 import kotlin.math.max
 import kotlin.math.min
@@ -26,6 +28,9 @@ object FireCalculationEngine {
 
         val preRoiMonthly = preRoiAnnual / 12.0
         val postRoiMonthly = postRoiAnnual / 12.0
+
+        val activeCorpus = input.effectiveCurrentCorpus
+        val activeMonthlyContribution = input.effectiveMonthlyContribution
 
         // 1. Calculate adjusted monthly withdrawal at retirement
         val inflationFactorAtRetirement = (1.0 + inflationAnnual).pow(yearsToRetire.toDouble())
@@ -52,7 +57,7 @@ object FireCalculationEngine {
 
         // 4. Simulate trajectory year-by-year (Accumulation phase & Retirement phase)
         val trajectory = mutableListOf<YearlyTrajectoryPoint>()
-        var runningCorpus = max(0.0, input.currentCorpus)
+        var runningCorpus = max(0.0, activeCorpus)
         var projectedCorpusAtRetirement = runningCorpus
         var exhaustionAge: Int? = null
 
@@ -77,8 +82,8 @@ object FireCalculationEngine {
             var totalYearlyGrowth = 0.0
 
             for (month in 1..12) {
-                runningCorpus += input.monthlyContribution
-                totalYearlyContribution += input.monthlyContribution
+                runningCorpus += activeMonthlyContribution
+                totalYearlyContribution += activeMonthlyContribution
 
                 val monthlyGain = runningCorpus * preRoiMonthly
                 runningCorpus += monthlyGain
@@ -156,7 +161,7 @@ object FireCalculationEngine {
         }
 
         val fireProgressPercent = if (targetCorpusNeeded > 0.0) {
-            ((input.currentCorpus / targetCorpusNeeded) * 100.0).coerceAtLeast(0.0)
+            ((activeCorpus / targetCorpusNeeded) * 100.0).coerceAtLeast(0.0)
         } else {
             100.0
         }
@@ -168,7 +173,7 @@ object FireCalculationEngine {
         }
 
         // Coast FIRE: existing corpus compounding until retirement without any further contributions
-        val compoundedExisting = input.currentCorpus * (1.0 + preRoiAnnual).pow(yearsToRetire.toDouble())
+        val compoundedExisting = activeCorpus * (1.0 + preRoiAnnual).pow(yearsToRetire.toDouble())
         val isCoastFireAchieved = compoundedExisting >= targetCorpusNeeded && targetCorpusNeeded > 0.0
         val coastFireCurrentCorpusNeeded = if (1.0 + preRoiAnnual > 0.0) {
             (targetCorpusNeeded / (1.0 + preRoiAnnual).pow(yearsToRetire.toDouble())).coerceAtLeast(0.0)
@@ -178,6 +183,55 @@ object FireCalculationEngine {
 
         val leanFireCorpusNeeded = firstYearAnnualWithdrawal * 15.0
         val fatFireCorpusNeeded = firstYearAnnualWithdrawal * 33.0
+
+        // 5. Scheme Analytics
+        val schemeAnalytics = if (input.country == Country.USA) {
+            val bridgeYears = max(0, 60 - safeRetirementAge)
+            val bridgeCorpusNeeded = if (bridgeYears > 0) {
+                var bridgeSum = 0.0
+                for (bYear in 0 until bridgeYears) {
+                    val inflFactor = (1.0 + inflationAnnual).pow(bYear.toDouble())
+                    bridgeSum += firstYearAnnualWithdrawal * inflFactor
+                }
+                bridgeSum
+            } else {
+                0.0
+            }
+
+            var projBrokerage = input.usaSchemes.taxableBrokerageBalance
+            for (y in 1..yearsToRetire) {
+                for (m in 1..12) {
+                    projBrokerage += input.usaSchemes.taxableBrokerageMonthlyContribution
+                    projBrokerage += projBrokerage * preRoiMonthly
+                }
+            }
+
+            SchemeAnalytics(
+                earlyRetirementBridgeYears = bridgeYears,
+                earlyBridgeCorpusNeeded = bridgeCorpusNeeded,
+                projectedTaxableBrokerageAtRetirement = projBrokerage,
+                isEarlyBridgeCovered = bridgeYears == 0 || projBrokerage >= bridgeCorpusNeeded,
+                annual401kEmployerMatchTotal = input.usaSchemes.monthlyEmployerMatch * 12.0
+            )
+        } else {
+            var projNps = input.indiaSchemes.npsBalance
+            for (y in 1..yearsToRetire) {
+                for (m in 1..12) {
+                    projNps += input.indiaSchemes.npsMonthlyContribution
+                    projNps += projNps * preRoiMonthly
+                }
+            }
+            val mandatoryAnnuity = projNps * 0.40
+            val taxFreeLumpSum = projNps * 0.60
+            val monthlyPension = (mandatoryAnnuity * 0.06) / 12.0
+
+            SchemeAnalytics(
+                npsProjectedCorpusAtRetirement = projNps,
+                npsMandatoryAnnuityLumpSum = mandatoryAnnuity,
+                npsTaxFreeLumpSum = taxFreeLumpSum,
+                npsMonthlyEstimatedPension = monthlyPension
+            )
+        }
 
         return FireResult(
             targetCorpusNeeded = targetCorpusNeeded,
@@ -197,7 +251,8 @@ object FireCalculationEngine {
             isCoastFireAchieved = isCoastFireAchieved,
             coastFireCurrentCorpusNeeded = coastFireCurrentCorpusNeeded,
             leanFireCorpusNeeded = leanFireCorpusNeeded,
-            fatFireCorpusNeeded = fatFireCorpusNeeded
+            fatFireCorpusNeeded = fatFireCorpusNeeded,
+            schemeAnalytics = schemeAnalytics
         )
     }
 }

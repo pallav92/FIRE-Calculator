@@ -130,4 +130,59 @@ class FireCalculationEngineTest {
             assertTrue("Withdrawal post-retirement should occur while funded", pt.annualWithdrawal > 0.0)
         }
     }
+
+    @Test
+    fun testUsa401kEmployerMatchAndBridgeCalculation() {
+        val input = FireInput(
+            country = com.finance.firecalculator.domain.model.Country.USA,
+            currentAge = 35,
+            retirementAge = 50, // Retiring 10 years before 60
+            useSchemeBreakdown = true,
+            usaSchemes = com.finance.firecalculator.domain.model.UsaSchemeInput(
+                k401Balance = 200_000.0,
+                k401MonthlyContribution = 1_500.0,
+                k401EmployerMatchPercent = 50.0, // $750/mo match
+                k401EmployerMatchLimitMonthly = 750.0,
+                iraBalance = 50_000.0,
+                iraMonthlyContribution = 500.0,
+                taxableBrokerageBalance = 150_000.0,
+                taxableBrokerageMonthlyContribution = 500.0
+            )
+        )
+        val result = FireCalculationEngine.calculate(input)
+
+        // Verify effective contribution includes employer match: 1500 + 750 + 500 + 500 = 3,250
+        assertEquals(3_250.0, input.effectiveMonthlyContribution, 0.01)
+
+        // Verify bridge analytics: retiring at 50 gives 10 bridge years until 60
+        assertEquals(10, result.schemeAnalytics.earlyRetirementBridgeYears)
+        assertTrue(result.schemeAnalytics.earlyBridgeCorpusNeeded > 0.0)
+        assertTrue(result.schemeAnalytics.annual401kEmployerMatchTotal == 750.0 * 12.0)
+    }
+
+    @Test
+    fun testIndiaNpsMandatoryAnnuityCalculation() {
+        val input = FireInput(
+            country = com.finance.firecalculator.domain.model.Country.INDIA,
+            currentAge = 30,
+            retirementAge = 55,
+            useSchemeBreakdown = true,
+            indiaSchemes = com.finance.firecalculator.domain.model.IndiaSchemeInput(
+                epfBalance = 500_000.0,
+                epfMonthlyContribution = 15_000.0,
+                npsBalance = 300_000.0,
+                npsMonthlyContribution = 5_000.0,
+                mutualFundsBalance = 1_000_000.0,
+                mutualFundsMonthlyContribution = 20_000.0
+            )
+        )
+        val result = FireCalculationEngine.calculate(input)
+
+        val analytics = result.schemeAnalytics
+        assertTrue("Projected NPS should compound positively", analytics.npsProjectedCorpusAtRetirement > 300_000.0)
+        // 40% annuity and 60% lump sum split
+        assertEquals(analytics.npsProjectedCorpusAtRetirement * 0.40, analytics.npsMandatoryAnnuityLumpSum, 0.01)
+        assertEquals(analytics.npsProjectedCorpusAtRetirement * 0.60, analytics.npsTaxFreeLumpSum, 0.01)
+        assertTrue(analytics.npsMonthlyEstimatedPension > 0.0)
+    }
 }

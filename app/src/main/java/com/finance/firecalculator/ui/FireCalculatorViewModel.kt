@@ -5,8 +5,11 @@ import androidx.lifecycle.AndroidViewModel
 import com.finance.firecalculator.data.IProfileRepository
 import com.finance.firecalculator.data.ProfileRepository
 import com.finance.firecalculator.domain.FireCalculationEngine
+import com.finance.firecalculator.domain.model.Country
 import com.finance.firecalculator.domain.model.FireInput
 import com.finance.firecalculator.domain.model.FireResult
+import com.finance.firecalculator.domain.model.IndiaSchemeInput
+import com.finance.firecalculator.domain.model.UsaSchemeInput
 import com.finance.firecalculator.domain.model.UserProfile
 import com.finance.firecalculator.ui.navigation.AppTab
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +28,9 @@ data class FireUiState(
     val isSaveProfileDialogVisible: Boolean = false,
     val isCreateNewProfileDialogVisible: Boolean = false,
     val profileToRename: UserProfile? = null,
-    val comparisonProfile: UserProfile? = null
+    val comparisonProfile: UserProfile? = null,
+    val isOnboardingCompleted: Boolean = false,
+    val showCountrySelectionDialog: Boolean = false
 ) {
     val isGuest: Boolean
         get() = activeProfile == null
@@ -48,13 +53,13 @@ class FireCalculatorViewModel(
     }
 
     private fun loadInitialData() {
+        val onboardingDone = repository.isOnboardingCompleted()
         val profiles = repository.getAllProfiles()
         val activeProfile = repository.getActiveProfile()
 
         val initialInput = activeProfile?.input ?: repository.getGuestInput()
         val result = FireCalculationEngine.calculate(initialInput)
 
-        // Default secondary comparison profile (first profile that isn't the active one)
         val comparison = profiles.firstOrNull { it.id != activeProfile?.id }
 
         _uiState.value = FireUiState(
@@ -64,8 +69,44 @@ class FireCalculatorViewModel(
             activeProfile = activeProfile,
             savedProfiles = profiles,
             hasUnsavedChanges = false,
-            comparisonProfile = comparison
+            comparisonProfile = comparison,
+            isOnboardingCompleted = onboardingDone
         )
+    }
+
+    fun completeOnboarding(selectedCountry: Country) {
+        repository.setSelectedCountry(selectedCountry)
+        repository.setOnboardingCompleted(true)
+
+        val defaultInput = FireInput.defaultForCountry(selectedCountry)
+        repository.saveGuestInput(defaultInput)
+        val result = FireCalculationEngine.calculate(defaultInput)
+
+        _uiState.update {
+            it.copy(
+                isOnboardingCompleted = true,
+                input = defaultInput,
+                result = result,
+                activeProfile = null,
+                hasUnsavedChanges = false
+            )
+        }
+    }
+
+    fun switchCountry(newCountry: Country) {
+        repository.setSelectedCountry(newCountry)
+        onInputChange { current ->
+            FireInput.defaultForCountry(newCountry).copy(
+                currentAge = current.currentAge,
+                retirementAge = current.retirementAge,
+                lifeExpectancy = current.lifeExpectancy
+            )
+        }
+        _uiState.update { it.copy(showCountrySelectionDialog = false) }
+    }
+
+    fun setShowCountrySelectionDialog(show: Boolean) {
+        _uiState.update { it.copy(showCountrySelectionDialog = show) }
     }
 
     fun selectTab(tab: AppTab) {
@@ -115,6 +156,16 @@ class FireCalculatorViewModel(
     fun toggleCustomPostRetirementRoi(enabled: Boolean) = onInputChange { it.copy(isCustomPostRetirementRoi = enabled) }
 
     fun updateCurrency(currency: String) = onInputChange { it.copy(currencySymbol = currency) }
+
+    fun toggleUseSchemeBreakdown(enabled: Boolean) = onInputChange { it.copy(useSchemeBreakdown = enabled) }
+
+    fun updateUsaSchemes(update: (UsaSchemeInput) -> UsaSchemeInput) = onInputChange {
+        it.copy(usaSchemes = update(it.usaSchemes))
+    }
+
+    fun updateIndiaSchemes(update: (IndiaSchemeInput) -> IndiaSchemeInput) = onInputChange {
+        it.copy(indiaSchemes = update(it.indiaSchemes))
+    }
 
     fun saveActiveProfileChanges() {
         val active = _uiState.value.activeProfile ?: return
@@ -219,9 +270,8 @@ class FireCalculatorViewModel(
     }
 
     fun resetToDefaults() {
-        // Only for guest mode
         if (_uiState.value.isGuest) {
-            val defaultInput = FireInput(currencySymbol = _uiState.value.input.currencySymbol)
+            val defaultInput = FireInput.defaultForCountry(_uiState.value.input.country)
             onInputChange { defaultInput }
         }
     }

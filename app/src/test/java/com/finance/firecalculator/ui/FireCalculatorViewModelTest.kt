@@ -1,6 +1,7 @@
 package com.finance.firecalculator.ui
 
 import com.finance.firecalculator.data.IProfileRepository
+import com.finance.firecalculator.domain.model.Country
 import com.finance.firecalculator.domain.model.FireInput
 import com.finance.firecalculator.domain.model.UserProfile
 import com.finance.firecalculator.ui.navigation.AppTab
@@ -13,6 +14,8 @@ class FakeProfileRepository : IProfileRepository {
     private val profiles = mutableListOf<UserProfile>()
     private var activeId: String? = null
     private var guestInput = FireInput()
+    private var onboardingCompleted = false
+    private var selectedCountry = Country.INDIA
 
     override fun getAllProfiles(): List<UserProfile> = profiles.toList()
 
@@ -62,6 +65,18 @@ class FakeProfileRepository : IProfileRepository {
     override fun saveGuestInput(input: FireInput) {
         guestInput = input
     }
+
+    override fun isOnboardingCompleted(): Boolean = onboardingCompleted
+
+    override fun setOnboardingCompleted(completed: Boolean) {
+        onboardingCompleted = completed
+    }
+
+    override fun getSelectedCountry(): Country = selectedCountry
+
+    override fun setSelectedCountry(country: Country) {
+        selectedCountry = country
+    }
 }
 
 class FireCalculatorViewModelTest {
@@ -82,6 +97,78 @@ class FireCalculatorViewModelTest {
         assertNull(state.activeProfile)
         assertEquals(AppTab.Visualizer, state.selectedTab)
         assertFalse(state.hasUnsavedChanges)
+        assertFalse(state.isOnboardingCompleted)
+    }
+
+    @Test
+    fun testCompleteOnboarding_setsCountryAndDefaults() {
+        assertFalse(viewModel.uiState.value.isOnboardingCompleted)
+
+        viewModel.completeOnboarding(Country.USA)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isOnboardingCompleted)
+        assertEquals(Country.USA, state.input.country)
+        assertEquals("$", state.input.currencySymbol)
+        assertEquals(3.0, state.input.inflationRatePercent, 0.01)
+        assertEquals(8.5, state.input.expectedRoiPercent, 0.01)
+        assertTrue(fakeRepository.isOnboardingCompleted())
+        assertEquals(Country.USA, fakeRepository.getSelectedCountry())
+    }
+
+    @Test
+    fun testSwitchCountry_updatesCurrencyAndDefaults() {
+        viewModel.completeOnboarding(Country.INDIA)
+        assertEquals(Country.INDIA, viewModel.uiState.value.input.country)
+        assertEquals("₹", viewModel.uiState.value.input.currencySymbol)
+
+        viewModel.switchCountry(Country.USA)
+        assertEquals(Country.USA, viewModel.uiState.value.input.country)
+        assertEquals("$", viewModel.uiState.value.input.currencySymbol)
+        assertEquals(3.0, viewModel.uiState.value.input.inflationRatePercent, 0.01)
+    }
+
+    @Test
+    fun testUsaSchemes_aggregationAndBridgeAnalytics() {
+        viewModel.completeOnboarding(Country.USA)
+        viewModel.toggleUseSchemeBreakdown(true)
+
+        viewModel.updateUsaSchemes {
+            it.copy(
+                k401MonthlyContribution = 1_500.0,
+                k401EmployerMatchPercent = 50.0,
+                k401EmployerMatchLimitMonthly = 750.0,
+                iraMonthlyContribution = 500.0,
+                taxableBrokerageMonthlyContribution = 400.0
+            )
+        }
+
+        val state = viewModel.uiState.value
+        assertTrue(state.input.useSchemeBreakdown)
+        // 1500 + 750 (50% match) + 500 + 400 = 3150
+        assertEquals(3_150.0, state.input.effectiveMonthlyContribution, 0.01)
+        assertTrue(state.result.schemeAnalytics.annual401kEmployerMatchTotal > 0.0)
+    }
+
+    @Test
+    fun testIndiaSchemes_npsAnnuityAnalytics() {
+        viewModel.completeOnboarding(Country.INDIA)
+        viewModel.toggleUseSchemeBreakdown(true)
+
+        viewModel.updateIndiaSchemes {
+            it.copy(
+                npsBalance = 500_000.0,
+                npsMonthlyContribution = 5_000.0
+            )
+        }
+
+        val state = viewModel.uiState.value
+        assertTrue(state.input.useSchemeBreakdown)
+        val npsAnalytics = state.result.schemeAnalytics
+        assertTrue("Projected NPS at retirement should be greater than 0", npsAnalytics.npsProjectedCorpusAtRetirement > 0.0)
+        assertEquals(npsAnalytics.npsProjectedCorpusAtRetirement * 0.40, npsAnalytics.npsMandatoryAnnuityLumpSum, 0.01)
+        assertEquals(npsAnalytics.npsProjectedCorpusAtRetirement * 0.60, npsAnalytics.npsTaxFreeLumpSum, 0.01)
+        assertTrue("Estimated monthly pension should be positive", npsAnalytics.npsMonthlyEstimatedPension > 0.0)
     }
 
     @Test
@@ -112,25 +199,21 @@ class FireCalculatorViewModelTest {
         assertEquals(50_000_000.0, viewModel.uiState.value.input.currentCorpus, 0.001)
 
         viewModel.resetToDefaults()
-        val defaultCorpus = FireInput().currentCorpus
+        val defaultCorpus = FireInput.defaultForCountry(viewModel.uiState.value.input.country).currentCorpus
         assertEquals(defaultCorpus, viewModel.uiState.value.input.currentCorpus, 0.001)
     }
 
     @Test
     fun testProfileProtection_modificationsTriggerUnsavedChanges() {
-        // Create and select a saved profile
-        val initialProfileInput = FireInput(currentCorpus = 10_000_000.0, monthlyWithdrawalPostRetirement = 80_000.0)
         viewModel.saveCurrentAsNewProfile("Retirement 2040")
 
         assertFalse(viewModel.uiState.value.isGuest)
         assertEquals("Retirement 2040", viewModel.uiState.value.activeProfile?.name)
         assertFalse(viewModel.uiState.value.hasUnsavedChanges)
 
-        // Modify corpus
         viewModel.updateCurrentCorpus(20_000_000.0)
         assertTrue("Modifying saved profile should flag unsaved changes", viewModel.uiState.value.hasUnsavedChanges)
 
-        // Discard changes
         viewModel.discardProfileChanges()
         assertFalse("Discarding changes should clear unsaved flag", viewModel.uiState.value.hasUnsavedChanges)
         assertNotEquals(20_000_000.0, viewModel.uiState.value.input.currentCorpus, 0.001)
@@ -155,7 +238,6 @@ class FireCalculatorViewModelTest {
         val initialAge = viewModel.uiState.value.input.retirementAge
 
         viewModel.updateRetirementAge(52)
-        // Attempting to call resetToDefaults on a saved profile should be a NO-OP
         viewModel.resetToDefaults()
 
         assertEquals("Saved profile must not be wiped by resetToDefaults", 52, viewModel.uiState.value.input.retirementAge)
@@ -173,11 +255,9 @@ class FireCalculatorViewModelTest {
         assertEquals(2, viewModel.uiState.value.savedProfiles.size)
         assertEquals(betaId, viewModel.uiState.value.activeProfile?.id)
 
-        // Switch back to Alpha
         viewModel.switchToProfile(alphaId)
         assertEquals("Plan Alpha", viewModel.uiState.value.activeProfile?.name)
 
-        // Switch to Guest
         viewModel.switchToGuest()
         assertTrue(viewModel.uiState.value.isGuest)
         assertNull(viewModel.uiState.value.activeProfile)
@@ -208,7 +288,6 @@ class FireCalculatorViewModelTest {
 
     @Test
     fun testApplicationConstructorExistsForAndroidViewModelFactory() {
-        // ViewModelProvider.AndroidViewModelFactory requires a public constructor taking exactly (Application)
         val constructor = FireCalculatorViewModel::class.java.getConstructor(android.app.Application::class.java)
         assertNotNull("FireCalculatorViewModel must have a public constructor(Application) for ViewModelProvider", constructor)
     }
